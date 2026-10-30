@@ -1,5 +1,5 @@
 """
-Placeholder for a short summary about DynamicHMCDistributedSampler.
+$(DocStringExtensions.README)
 """
 module DynamicHMCDistributedSampler
 
@@ -7,6 +7,7 @@ export distributed_sampler, collect_started_chains, load_mcmc
 
 using ArgCheck: @argcheck
 import Dates
+using DocStringExtensions
 using DynamicHMC
 import JLD2
 using LoggingExtras: with_logger, FileLogger
@@ -19,6 +20,28 @@ struct DistributedSampler{P<:AbstractString,L,K}
     kw_generator::K
 end
 
+"""
+$(SIGNATURES)
+
+Set up a *sampler*, which is a callable taking integer arguments `<index>` to
+
+1. run `DynamicHMC.mcmc_with_warmup`,
+2. save the *result* in `path_chain_<index>.jld2`,
+3. save the *log* in `path_chain_<index>.log`
+
+for each. In case there is an error, the message is written to the log file, and no
+`jld` file will be created. The callable returns a boolean for success.
+
+`path` should be of the form `directory/basename`, without extensions. It is created by
+this function.
+
+`∇ℓ` is a differentiable log density, conforming to the [LogDensityProblems.jl](https://github.com/tpapp/LogDensityProblems.jl) API.
+
+`N` is the number of samples.
+
+The keyword argument `kw_generator` can be a `NamedTuple`, or a function that returns a
+`NamedTuple` of keywords, with no argument. These are passed to `mcmc_with_warmup`.
+"""
 function distributed_sampler(path::AbstractString, ∇ℓ, N::Int; kw_generator = (;))
     d, b = splitdir(path)
     @argcheck !isempty(d) "Directory part of $(path) is empty"
@@ -64,6 +87,14 @@ function (sampler::DistributedSampler)(i::Int)
     end
 end
 
+"""
+$(SIGNATURES)
+
+Collect all chains that have a log file. Stop at the first index which does not have one.
+
+Return a vector of `(; log_path, mcmc_path)`, where `mcmc_path ≡ nothing` indicates
+missing MCMC results, which means that MCMC errored or has not terminated yet.
+"""
 function collect_started_chains(path::AbstractString)
     chains = Vector{@NamedTuple{log_path::String, mcmc_path::Union{String,Nothing}}}()
     i = 1
@@ -79,6 +110,13 @@ function collect_started_chains(path::AbstractString)
     chains
 end
 
+"""
+$(SIGNATURES)
+
+Load the MCMC results, ie the output from `DynamicHMC.mcmc_with_warmup`. Return
+`nothing` when there are no results, which indicates that the either the chain has not
+terminated, or an error.
+"""
 function load_mcmc(chain)
     (; mcmc_path) = chain
     if mcmc_path ≡ nothing
