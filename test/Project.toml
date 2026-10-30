@@ -1,0 +1,7 @@
+[deps]
+Aqua = "4c88cf16-eb10-579e-8560-4a9242c79595"
+DynamicHMC = "bbc10e6e-7c05-544b-b16e-64fede858acb"
+DynamicHMCDistributedSampler = "071af560-f8b0-422a-ae8a-644a4a7f59ca"
+JET = "c3a54625-cd67-489e-a8e7-0a5a0ff4e31b"
+LogDensityTestSuite = "feb245ec-c857-584e-a66a-22324acf10c6"
+Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
