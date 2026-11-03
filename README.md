@@ -2,7 +2,7 @@
 
 ![lifecycle](https://img.shields.io/badge/lifecycle-experimental-orange.svg)
 [![build](https://github.com/tpapp/DynamicHMCDistributedSampler.jl/workflows/CI/badge.svg)](https://github.com/tpapp/DynamicHMCDistributedSampler.jl/actions?query=workflow%3ACI)
-[![codecov](https://codecov.io/gh/tpapp/DynamicHMCDistributedSampler.jl/graph/badge.svg?token=ey9qzQDxN4)](https://codecov.io/gh/tpapp/DynamicHMCDistributedSampler.jl)
+[![codecov](https://codecov.io/gh/tpapp/DynamicHMCDistributedSampler.jl/branch/master/graph/badge.svg?token=ey9qzQDxN4)](https://codecov.io/gh/tpapp/DynamicHMCDistributedSampler.jl)
 [![Aqua QA](https://raw.githubusercontent.com/JuliaTesting/Aqua.jl/master/badge.svg)](https://github.com/JuliaTesting/Aqua.jl)
 
 A tiny Julia package for running MCMC chains with DynamicHMC.
