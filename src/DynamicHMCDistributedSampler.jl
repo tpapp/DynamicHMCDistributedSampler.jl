@@ -13,7 +13,7 @@ import JLD2
 using LoggingExtras: with_logger, FileLogger
 import Random
 
-struct DistributedSampler{P<:AbstractString,L,K}
+struct DistributedSampler{P<:AbstractString,L,K} <: Function
     path::P
     ∇ℓ::L
     N::Int
