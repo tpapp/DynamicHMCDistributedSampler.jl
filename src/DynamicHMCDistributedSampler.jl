@@ -13,11 +13,14 @@ import JLD2
 using LoggingExtras: with_logger, FileLogger
 import Random
 
-struct DistributedSampler{P<:AbstractString,L,K} <: Function
+struct DistributedSampler{P<:AbstractString,M,K,C,L,S} <: Function
     path::P
-    ∇ℓ::L
+    model::M
     N::Int
     kw_generator::K
+    copy_model::C
+    prepare_logdensity::L
+    collect_statistics::S
 end
 
 """
@@ -35,21 +38,41 @@ for each. In case there is an error, the message is written to the log file, and
 `path` should be of the form `directory/basename`, without extensions. It is created by
 this function.
 
-`∇ℓ` is a differentiable log density, conforming to the [LogDensityProblems.jl](https://github.com/tpapp/LogDensityProblems.jl) API.
+`model`: see below.
 
 `N` is the number of samples.
 
 The keyword argument `kw_generator` can be a `NamedTuple`, or a function that returns a
 `NamedTuple` of keywords, with no argument. These are passed to `mcmc_with_warmup`.
+
+For the other keyword arguments, see below.
+
+# Model interface
+
+`model` is used in the following way:
+
+1. first, it is copied for each worker using `copy_model`.
+
+2. `prepare_logdensity` is called on the copy, should yield a differentiable log
+density, conforming to the
+[LogDensityProblems.jl](https://github.com/tpapp/LogDensityProblems.jl) API.
+
+3. `collect_statistics` is called on the copy, the result is appended as
+`model_statistics` to the MCMC results.
 """
-function distributed_sampler(path::AbstractString, ∇ℓ, N::Int; kw_generator = (;))
+function distributed_sampler(path::AbstractString, model, N::Int;
+                             kw_generator = (;),
+                             copy_model = identity,
+                             prepare_logdensity = identity,
+                             collect_statistics = () -> nothing)
     d, b = splitdir(path)
     @argcheck !isempty(d) "Directory part of $(path) is empty"
     @argcheck !isempty(b) "Basename part of $(path) is empty"
     e = splitext(b)[2]
     @argcheck isempty(e) "Path $(path) has a nonempty extension $(e)"
     mkpath(d)
-    DistributedSampler(path, ∇ℓ, N, kw_generator)
+    DistributedSampler(path, model, N, kw_generator,
+                       copy_model, prepare_logdensity, collect_statistics)
 end
 
 function _filenames(path::AbstractString, i::Int)
@@ -64,26 +87,30 @@ make_keywords(kw_generator::Function) = kw_generator()
 make_keywords(kw::NamedTuple) = kw
 
 function (sampler::DistributedSampler)(i::Int)
-    (; path, ∇ℓ, N, kw_generator) = sampler
+    (; path, model, N, kw_generator, copy_model, prepare_logdensity,
+     collect_statistics) = sampler
     (; log_path, mcmc_path) = _filenames(path, i)
     @argcheck !isfile(mcmc_path) "Won't overwrite $(mcmc_path), remove"
     @argcheck !isfile(log_path) "Won't overwrite $(log_path), remove"
-    open(log_path, "w") do io
-        println(io, "Starting MCMC chain $i at ", Dates.now())
-    end
-    try
-        with_logger(FileLogger(log_path; append = true)) do
-            mcmc = mcmc_with_warmup(Random.default_rng(), copy(∇ℓ), N;
-                                    make_keywords(kw_generator)...)
-            JLD2.save_object(mcmc_path, mcmc)
+    with_logger(FileLogger(log_path; append = true)) do
+        @info "Starting MCMC chain $i" at = Dates.now()
+        try
+            _model = copy_model(model)
+            _∇ℓ = prepare_logdensity(_model)
+            kw = merge(make_keywords(kw_generator),
+                       (reporter = LogProgressReport(; chain_id = i),))
+            mcmc = mcmc_with_warmup(Random.default_rng(), _∇ℓ, N; kw...)
+            _mcmc = merge(mcmc, (model_statistics = collect_statistics(_model),))
+            @info "Finished MCMC chain $i" at = Dates.now()
+            JLD2.save_object(mcmc_path, _mcmc)
+            true
+        catch e
+            bt = catch_backtrace()
+            open(log_path, "a") do io
+                showerror(io, e, bt)
+            end
+            false
         end
-        true
-    catch e
-        bt = catch_backtrace()
-        open(log_path, "a") do io
-            showerror(io, e, bt)
-        end
-        false
     end
 end
 

@@ -6,15 +6,19 @@ using JET
     JET.test_package(DynamicHMCDistributedSampler, target_modules=(DynamicHMCDistributedSampler,))
 end
 
-Base.copy(s::StandardMultivariateNormal) = s # piracy for testing
-
 @testset "concistency test" begin
     path = joinpath(@__DIR__, "results", "tag")
-    sampler = distributed_sampler(path, StandardMultivariateNormal(2), 100)
+    sampler = distributed_sampler(path, StandardMultivariateNormal(2), 100;
+                                  copy_model = m -> (; model = m, stats = 1),
+                                  prepare_logdensity = m -> m.model,
+                                  collect_statistics = m -> m.stats)
     @test all(map(sampler, 1:3))
     for i in 1:3
         @test isfile(path * "_chain_$i.jld2")
-        @test isfile(path * "_chain_$i.log")
+        log = read(path * "_chain_$i.jld2", String)
+        occursin("Starting MCMC chain $i", log)
+        occursin("MCMC progress", log)
+        occursin("Finished MCMC chain $i", log)
     end
 
     # remove second chain and test results without it
